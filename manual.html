@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Add Book Manually</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js"></script>
+</head>
+<body>
+  <h2>📚 Add Book Manually</h2>
+  <form id="manualForm">
+    <label>Title*: <br><input type="text" id="title" required></label><br><br>
+    <label>Author*: <br><input type="text" id="author" required></label><br><br>
+    <label>Genre: <br><input type="text" id="genre"></label><br><br>
+    <label>ISBN: <br><input type="text" id="isbn"></label><br><br>
+    <label>Image URL: <br><input type="text" id="image"></label><br><br>
+    <button type="submit">➕ Add Book</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script type="module">
+    // 🔧 Your Firebase config here
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDpXkGpaVnKn_QOn7DMUFIk9HXxVSV9ybA",
+      authDomain: "manan-s-library.firebaseapp.com",
+      projectId: "manan-s-library",
+      storageBucket: "manan-s-library.firebasestorage.app",
+      messagingSenderId: "488312227144",
+     appId: "1:488312227144:web:987a287e7a950c727b9f7d"
+      };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    document.getElementById("manualForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const status = document.getElementById("status");
+
+      const data = {
+        title: document.getElementById("title").value.trim(),
+        author: document.getElementById("author").value.trim(),
+        genre: document.getElementById("genre").value.trim(),
+        isbn: document.getElementById("isbn").value.trim(),
+        image: document.getElementById("image").value.trim(),
+        timestamp: serverTimestamp()
+      };
+
+      try {
+        await addDoc(collection(db, "books"), data);
+        status.innerText = "✅ Book added successfully!";
+        document.getElementById("manualForm").reset();
+      } catch (err) {
+        status.innerText = "❌ Failed to add book.";
+        console.error(err);
+      }
+    });
+  </script>
+</body>
+</html>
