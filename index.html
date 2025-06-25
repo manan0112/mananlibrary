@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>📚 Book Catalogue Scanner</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    input { margin: 5px 0; }
+    .book-list { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+    .book-card {
+      border: 1px solid #ccc;
+      padding: 10px;
+      width: 200px;
+    }
+    .book-card img {
+      width: 100%;
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>📖 Book Scanner Catalogue</h1>
+
+  <div id="scanner" style="width: 300px;"></div>
+  <p>Scan your books using the barcode (ISBN).</p>
+
+  <div id="manual-entry" style="display:none;">
+    <h3>Manual Entry</h3>
+    <input id="isbn-input" placeholder="ISBN"><br>
+    <input id="title-input" placeholder="Title"><br>
+    <input id="author-input" placeholder="Author"><br>
+    <input id="genre-input" placeholder="Genre"><br>
+    <input id="image-url-input" placeholder="Cover Image URL (optional)"><br>
+    <button onclick="saveManualEntry()">Save Manually</button>
+  </div>
+
+  <button onclick="exportCSV()">📤 Export as CSV</button>
+
+  <div class="book-list" id="book-list">
+    <h2>Your Books</h2>
+  </div>
+
+  <script>
+    // 🔥 Paste your Firebase config here:
+    const firebaseConfig = {
+      apiKey: "AIzaSyDpXkGpaVnKn_QOn7DMUFIk9HXxVSV9ybA",
+      authDomain: "manan-s-library.firebaseapp.com",
+      projectId: "manan-s-library",
+      storageBucket: "manan-s-library.firebasestorage.app",
+      messagingSenderId: "488312227144",
+     appId: "1:488312227144:web:987a287e7a950c727b9f7d"
+      };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const scanner = new Html5QrcodeScanner("scanner", { fps: 10, qrbox: 250 });
+
+    scanner.render((decodedText) => {
+      scanner.clear();
+      handleISBN(decodedText);
+    }, (error) => {
+      console.warn(error);
+    });
+
+    async function handleISBN(isbn) {
+      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
+      const res = await fetch(apiUrl);
+      const data = await res.json();
+
+      if (data.totalItems > 0) {
+        const book = data.items[0].volumeInfo;
+        const entry = {
+          isbn,
+          title: book.title || "Unknown",
+          author: (book.authors && book.authors.join(", ")) || "Unknown",
+          genre: (book.categories && book.categories.join(", ")) || "Unknown",
+          image: (book.imageLinks && book.imageLinks.thumbnail) || ""
+        };
+        saveBook(entry);
+      } else {
+        document.getElementById("manual-entry").style.display = "block";
+        document.getElementById("isbn-input").value = isbn;
+      }
+    }
+
+    function saveManualEntry() {
+      const entry = {
+        isbn: document.getElementById("isbn-input").value,
+        title: document.getElementById("title-input").value,
+        author: document.getElementById("author-input").value,
+        genre: document.getElementById("genre-input").value,
+        image: document.getElementById("image-url-input").value || ""
+      };
+      saveBook(entry);
+      document.getElementById("manual-entry").style.display = "none";
+    }
+
+    function saveBook(entry) {
+      db.collection("books").add(entry).then(() => {
+        renderBook(entry);
+      });
+    }
+
+    function renderBook(book) {
+      const list = document.getElementById("book-list");
+      const card = document.createElement("div");
+      card.className = "book-card";
+      card.innerHTML = `
+        ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
+        <strong>${book.title}</strong><br>
+        Author: ${book.author}<br>
+        ISBN: ${book.isbn}<br>
+        Genre: ${book.genre}`;
+      list.appendChild(card);
+    }
+
+    // Load existing books
+    const booksData = [];
+    db.collection("books").get().then((snapshot) => {
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        booksData.push(data);
+        renderBook(data);
+      });
+    });
+
+    function exportCSV() {
+      db.collection("books").get().then((snapshot) => {
+        const rows = [["ISBN", "Title", "Author", "Genre", "Cover"]];
+        snapshot.forEach((doc) => {
+          const b = doc.data();
+          rows.push([b.isbn, b.title, b.author, b.genre, b.image || ""]);
+        });
+        const csvContent = "data:text/csv;charset=utf-8," +
+          rows.map(e => e.map(v => `"${v}"`).join(",")).join("\n");
+        const link = document.createElement("a");
+        link.setAttribute("href", encodeURI(csvContent));
+        link.setAttribute("download", "book_catalogue.csv");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    }
+  </script>
+</body>
+</html>
