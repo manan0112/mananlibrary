@@ -134,46 +134,61 @@
 
     // 🧱 Render book card
     function renderBook(book, docId) {
-      const list = document.getElementById("book-list");
-      const card = document.createElement("div");
-      card.className = "book-card";
+  const list = document.getElementById("book-list");
+  const card = document.createElement("div");
+  card.className = "book-card";
+  card.dataset.id = docId;
 
-      card.innerHTML = `
-        ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
-        <strong contenteditable="false">${book.title}</strong><br>
-        <span contenteditable="false">${book.author}</span><br>
-        <small>ISBN: ${book.isbn}</small><br>
-        <span contenteditable="false">${book.genre}</span><br>
-        <div style="margin-top: 5px;">
-          <button onclick="editBook(this)">✏️ Edit</button>
-          <button onclick="saveEdit(this, '${docId}')">💾 Save</button>
-          <button onclick="deleteBook('${docId}', this)">🗑️ Delete</button>
-        </div>
-      `;
-      list.insertBefore(card, list.firstChild); // newest on top
-    }
+  card.innerHTML = `
+    ${book.image ? `<img src="${book.image}" alt="Cover">` : ""}
+    <div>
+      <strong class="editable title">${book.title}</strong><br>
+      <span class="editable author">${book.author}</span><br>
+      <small>ISBN: ${book.isbn}</small><br>
+      <span class="editable genre">${book.genre || ""}</span><br>
+    </div>
+    <div style="margin-top: 5px;">
+      <button onclick="editBook(this)">✏️ Edit</button>
+      <button onclick="saveEdit(this)">💾 Save</button>
+      <button onclick="deleteBook('${docId}', this)">🗑️ Delete</button>
+    </div>
+  `;
+
+  list.insertBefore(card, list.firstChild); // show newest first
+}
+
 
     // ✏️ Edit logic
-    function editBook(btn) {
-      const card = btn.closest(".book-card");
-      card.querySelectorAll("[contenteditable]").forEach(el => el.contentEditable = "true");
-    }
+    function editBook(button) {
+  const card = button.closest(".book-card");
+  card.querySelectorAll(".editable").forEach(el => {
+    el.contentEditable = "true";
+    el.style.background = "#f0f8ff";
+  });
+}
 
-    function saveEdit(btn, docId) {
-      const card = btn.closest(".book-card");
-      const [titleEl, authorEl, genreEl] = card.querySelectorAll("[contenteditable]");
+function saveEdit(button) {
+  const card = button.closest(".book-card");
+  const docId = card.dataset.id;
 
-      const updated = {
-        title: titleEl.innerText.trim(),
-        author: authorEl.innerText.trim(),
-        genre: genreEl.innerText.trim()
-      };
+  const updated = {
+    title: card.querySelector(".title").innerText.trim(),
+    author: card.querySelector(".author").innerText.trim(),
+    genre: card.querySelector(".genre").innerText.trim(),
+  };
 
-      db.collection("books").doc(docId).update(updated).then(() => {
-        card.querySelectorAll("[contenteditable]").forEach(el => el.contentEditable = "false");
-        alert("✅ Book updated!");
-      });
-    }
+  db.collection("books").doc(docId).update(updated).then(() => {
+    card.querySelectorAll(".editable").forEach(el => {
+      el.contentEditable = "false";
+      el.style.background = "";
+    });
+    alert("✅ Book updated");
+  }).catch((err) => {
+    alert("⚠️ Update failed");
+    console.error(err);
+  });
+}
+
 
     // 🗑️ Delete
     function deleteBook(docId, btn) {
