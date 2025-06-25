@@ -126,28 +126,31 @@ function stopScanner() {
       });
     }
 
-    function renderBook(book) {
-      const list = document.getElementById("book-list");
-      const card = document.createElement("div");
-      card.className = "book-card";
-      card.innerHTML = `
-        ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
-        <strong>${book.title}</strong><br>
-        Author: ${book.author}<br>
-        ISBN: ${book.isbn}<br>
-        Genre: ${book.genre}`;
-      list.appendChild(card);
-    }
+    function renderBook(book, docId = null) {
+  const list = document.getElementById("book-list");
+  const card = document.createElement("div");
+  card.className = "book-card";
+  card.innerHTML = `
+    ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
+    <strong>${book.title}</strong><br>
+    Author: ${book.author}<br>
+    ISBN: ${book.isbn}<br>
+    Genre: ${book.genre}<br>
+    <button onclick="deleteBook('${docId}', this)">🗑️ Delete</button>
+  `;
+  list.appendChild(card);
+}
+
 
     // Load existing books
     const booksData = [];
     db.collection("books").get().then((snapshot) => {
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        booksData.push(data);
-        renderBook(data);
+  const data = doc.data();
+  renderBook(data, doc.id);
+});
       });
-    });
+  
 
     function exportCSV() {
       db.collection("books").get().then((snapshot) => {
@@ -166,6 +169,19 @@ function stopScanner() {
         document.body.removeChild(link);
       });
     }
+
+    function deleteBook(docId, buttonElement) {
+  if (confirm("Delete this book?")) {
+    db.collection("books").doc(docId).delete().then(() => {
+      const card = buttonElement.closest(".book-card");
+      if (card) card.remove();
+    }).catch((error) => {
+      alert("Error deleting book: " + error);
+    });
+  }
+}
+
+
   </script>
 </body>
 </html>
