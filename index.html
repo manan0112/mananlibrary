@@ -53,6 +53,7 @@
     <label>Title:<br><input id="editTitle" style="width:100%;"></label><br><br>
     <label>Author:<br><input id="editAuthor" style="width:100%;"></label><br><br>
     <label>Genre:<br><input id="editGenre" style="width:100%;"></label><br><br>
+    <label>Cover Image URL:<br><input id="editImage" style="width:100%;"></label><br><br>
     <button onclick="saveModalEdit()">💾 Save</button>
     <button onclick="closeModal()">❌ Cancel</button>
   </div>
@@ -250,6 +251,9 @@ function editBook(btn) {
   const title = card.querySelector(".title").innerText;
   const author = card.querySelector(".author").innerText;
   const genre = card.querySelector(".genre").innerText;
+  const image = card.querySelector("img")?.src || "";
+document.getElementById("editImage").value = image;
+
 
   document.getElementById("editTitle").value = title;
   document.getElementById("editAuthor").value = author;
@@ -268,13 +272,24 @@ function saveModalEdit() {
   const updated = {
     title: document.getElementById("editTitle").value.trim(),
     author: document.getElementById("editAuthor").value.trim(),
-    genre: document.getElementById("editGenre").value.trim()
+    genre: document.getElementById("editGenre").value.trim(),
+    image: document.getElementById("editImage").value.trim()
+
   };
 
   db.collection("books").doc(currentEditId).update(updated).then(() => {
     currentCard.querySelector(".title").innerText = updated.title;
     currentCard.querySelector(".author").innerText = updated.author;
     currentCard.querySelector(".genre").innerText = updated.genre;
+    const imgEl = currentCard.querySelector("img");
+if (imgEl) {
+  imgEl.src = updated.image;
+} else if (updated.image) {
+  const newImg = document.createElement("img");
+  newImg.src = updated.image;
+  newImg.alt = "Cover";
+  currentCard.insertBefore(newImg, currentCard.firstChild);
+}
 
     closeModal();
     alert("✅ Book updated!");
