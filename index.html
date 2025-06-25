@@ -1,53 +1,58 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>📚 Book Catalogue Scanner</title>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <meta charset="UTF-8">
+  <title>My Book Catalogue</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: Arial; margin: 20px; }
-    input { margin: 5px 0; }
-    .book-list { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
-    .book-card {
-      border: 1px solid #ccc;
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+      background: #f4f4f4;
+    }
+    h1 { text-align: center; }
+    #scanner { margin: auto; max-width: 320px; }
+    .controls button {
+      margin: 10px 5px;
       padding: 10px;
-      width: 200px;
+      font-size: 16px;
+    }
+    .book-card {
+      background: white;
+      border-radius: 12px;
+      padding: 10px;
+      margin: 10px 0;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
     .book-card img {
-      width: 100%;
-      height: auto;
+      height: 100px;
+      margin-bottom: 5px;
+      display: block;
+    }
+    button {
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>📖 Book Scanner Catalogue</h1>
+  <h1>📚 My Book Catalogue</h1>
 
-<div id="scanner" style="width: 300px;"></div>
-<button onclick="startScanner()">Start Scanning</button>
-<button onclick="stopScanner()">Stop Scanning</button>
-
-  <p>Scan your books using the barcode (ISBN).</p>
-
-  <div id="manual-entry" style="display:none;">
-    <h3>Manual Entry</h3>
-    <input id="isbn-input" placeholder="ISBN"><br>
-    <input id="title-input" placeholder="Title"><br>
-    <input id="author-input" placeholder="Author"><br>
-    <input id="genre-input" placeholder="Genre"><br>
-    <input id="image-url-input" placeholder="Cover Image URL (optional)"><br>
-    <button onclick="saveManualEntry()">Save Manually</button>
+  <div class="controls" style="text-align: center;">
+    <button onclick="startScanner()">📷 Start Scanner</button>
+    <button onclick="stopScanner()">⛔ Stop Scanner</button>
+    <button onclick="exportCSV()">📤 Export CSV</button>
   </div>
 
-  <button onclick="exportCSV()">📤 Export as CSV</button>
+  <div id="scanner"></div>
 
-  <div class="book-list" id="book-list">
-    <h2>Your Books</h2>
-  </div>
+  <div id="book-list"></div>
 
+  <!-- Firebase + Scanner Script -->
   <script>
-    // 🔥 Paste your Firebase config here:
-    const firebaseConfig = {
+    // 🔥 Firebase setup
+   const firebaseConfig = {
       apiKey: "AIzaSyDpXkGpaVnKn_QOn7DMUFIk9HXxVSV9ybA",
       authDomain: "manan-s-library.firebaseapp.com",
       projectId: "manan-s-library",
@@ -58,130 +63,152 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // 📷 Scanner setup
     let html5QrCode = new Html5Qrcode("scanner");
     let isProcessing = false;
 
-function startScanner() {
-  Html5Qrcode.getCameras().then(devices => {
-    if (devices.length) {
-      html5QrCode.start(
-        { facingMode: "environment" }, // Use back camera
-        { fps: 10, qrbox: 250 },
-        (decodedText) => {
-          if (!isProcessing) {
-            isProcessing = true;
-            handleISBN(decodedText).then(() => {
-              setTimeout(() => { isProcessing = false; }, 2000); // Prevent rapid rescan
-            });
-          }
+    function startScanner() {
+      Html5Qrcode.getCameras().then(devices => {
+        if (devices.length) {
+          html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: 250 },
+            (decodedText) => {
+              if (!isProcessing) {
+                isProcessing = true;
+                handleISBN(decodedText).then(() => {
+                  setTimeout(() => { isProcessing = false; }, 1500);
+                });
+              }
+            }
+          );
         }
-      );
+      }).catch(err => console.error("Camera error:", err));
     }
-  }).catch(err => console.error("Camera error:", err));
-}
 
-function stopScanner() {
-  html5QrCode.stop().then(() => {
-    console.log("Scanner stopped");
-  }).catch(err => console.error("Stop failed:", err));
-}
+    function stopScanner() {
+      html5QrCode.stop().then(() => console.log("Scanner stopped"));
+    }
 
-
+    // 📘 Fetch book by ISBN
     async function handleISBN(isbn) {
-      const apiUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
-      const res = await fetch(apiUrl);
-      const data = await res.json();
-
-      if (data.totalItems > 0) {
-        const book = data.items[0].volumeInfo;
-        const entry = {
-          isbn,
-          title: book.title || "Unknown",
-          author: (book.authors && book.authors.join(", ")) || "Unknown",
-          genre: (book.categories && book.categories.join(", ")) || "Unknown",
-          image: (book.imageLinks && book.imageLinks.thumbnail) || ""
+      try {
+        const url = `https://www.googleapis.com/books/v1/volumes?q=isbn:${isbn}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        let book = {
+          title: "Unknown",
+          author: "Unknown",
+          isbn: isbn,
+          genre: "",
+          image: ""
         };
-        saveBook(entry);
-      } else {
-        document.getElementById("manual-entry").style.display = "block";
-        document.getElementById("isbn-input").value = isbn;
+
+        if (data.totalItems > 0) {
+          const info = data.items[0].volumeInfo;
+          book.title = info.title || "Unknown";
+          book.author = (info.authors && info.authors.join(", ")) || "Unknown";
+          book.genre = (info.categories && info.categories.join(", ")) || "";
+          book.image = info.imageLinks?.thumbnail || "";
+        } else {
+          const title = prompt("Enter book title:");
+          const author = prompt("Enter author:");
+          book.title = title || "Manual Entry";
+          book.author = author || "Unknown";
+        }
+
+        saveBook(book);
+      } catch (e) {
+        alert("Error fetching book info.");
+        console.error(e);
       }
     }
 
-    function saveManualEntry() {
-      const entry = {
-        isbn: document.getElementById("isbn-input").value,
-        title: document.getElementById("title-input").value,
-        author: document.getElementById("author-input").value,
-        genre: document.getElementById("genre-input").value,
-        image: document.getElementById("image-url-input").value || ""
+    // 💾 Save book to Firestore
+    function saveBook(book) {
+      book.timestamp = firebase.firestore.FieldValue.serverTimestamp();
+      db.collection("books").add(book).then((docRef) => {
+        renderBook(book, docRef.id);
+      });
+    }
+
+    // 🧱 Render book card
+    function renderBook(book, docId) {
+      const list = document.getElementById("book-list");
+      const card = document.createElement("div");
+      card.className = "book-card";
+
+      card.innerHTML = `
+        ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
+        <strong contenteditable="false">${book.title}</strong><br>
+        <span contenteditable="false">${book.author}</span><br>
+        <small>ISBN: ${book.isbn}</small><br>
+        <span contenteditable="false">${book.genre}</span><br>
+        <div style="margin-top: 5px;">
+          <button onclick="editBook(this)">✏️ Edit</button>
+          <button onclick="saveEdit(this, '${docId}')">💾 Save</button>
+          <button onclick="deleteBook('${docId}', this)">🗑️ Delete</button>
+        </div>
+      `;
+      list.insertBefore(card, list.firstChild); // newest on top
+    }
+
+    // ✏️ Edit logic
+    function editBook(btn) {
+      const card = btn.closest(".book-card");
+      card.querySelectorAll("[contenteditable]").forEach(el => el.contentEditable = "true");
+    }
+
+    function saveEdit(btn, docId) {
+      const card = btn.closest(".book-card");
+      const [titleEl, authorEl, genreEl] = card.querySelectorAll("[contenteditable]");
+
+      const updated = {
+        title: titleEl.innerText.trim(),
+        author: authorEl.innerText.trim(),
+        genre: genreEl.innerText.trim()
       };
-      saveBook(entry);
-      document.getElementById("manual-entry").style.display = "none";
-    }
 
-    function saveBook(entry) {
-      db.collection("books").add(entry).then(() => {
-        renderBook(entry);
+      db.collection("books").doc(docId).update(updated).then(() => {
+        card.querySelectorAll("[contenteditable]").forEach(el => el.contentEditable = "false");
+        alert("✅ Book updated!");
       });
     }
 
-    function renderBook(book, docId = null) {
-  const list = document.getElementById("book-list");
-  const card = document.createElement("div");
-  card.className = "book-card";
-  card.innerHTML = `
-    ${book.image ? `<img src="${book.image}" alt="Cover">` : ''}
-    <strong>${book.title}</strong><br>
-    Author: ${book.author}<br>
-    ISBN: ${book.isbn}<br>
-    Genre: ${book.genre}<br>
-    <button onclick="deleteBook('${docId}', this)">🗑️ Delete</button>
-  `;
-  list.appendChild(card);
-}
-
-
-    // Load existing books
-    const booksData = [];
-    db.collection("books").get().then((snapshot) => {
-      snapshot.forEach((doc) => {
-  const data = doc.data();
-  renderBook(data, doc.id);
-});
-      });
-  
-
-    function exportCSV() {
-      db.collection("books").get().then((snapshot) => {
-        const rows = [["ISBN", "Title", "Author", "Genre", "Cover"]];
-        snapshot.forEach((doc) => {
-          const b = doc.data();
-          rows.push([b.isbn, b.title, b.author, b.genre, b.image || ""]);
+    // 🗑️ Delete
+    function deleteBook(docId, btn) {
+      if (confirm("Delete this book?")) {
+        db.collection("books").doc(docId).delete().then(() => {
+          btn.closest(".book-card").remove();
         });
-        const csvContent = "data:text/csv;charset=utf-8," +
-          rows.map(e => e.map(v => `"${v}"`).join(",")).join("\n");
-        const link = document.createElement("a");
-        link.setAttribute("href", encodeURI(csvContent));
-        link.setAttribute("download", "book_catalogue.csv");
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      }
+    }
+
+    // 📤 Export to CSV
+    function exportCSV() {
+      db.collection("books").orderBy("timestamp", "desc").get().then(snapshot => {
+        const rows = [["Title", "Author", "ISBN", "Genre"]];
+        snapshot.forEach(doc => {
+          const b = doc.data();
+          rows.push([b.title, b.author, b.isbn, b.genre]);
+        });
+        const csv = rows.map(r => r.join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "book_catalogue.csv";
+        a.click();
       });
     }
 
-    function deleteBook(docId, buttonElement) {
-  if (confirm("Delete this book?")) {
-    db.collection("books").doc(docId).delete().then(() => {
-      const card = buttonElement.closest(".book-card");
-      if (card) card.remove();
-    }).catch((error) => {
-      alert("Error deleting book: " + error);
+    // 📥 Load on page load
+    db.collection("books").orderBy("timestamp", "desc").get().then(snapshot => {
+      snapshot.forEach(doc => {
+        renderBook(doc.data(), doc.id);
+      });
     });
-  }
-}
-
-
   </script>
 </body>
 </html>
